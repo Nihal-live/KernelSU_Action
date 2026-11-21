@@ -154,7 +154,7 @@ ksu_install() {
 		|| die "drivers/Makefile was not wired to CONFIG_KSU for kernelsu"
 	grep -q 'drivers/kernelsu/Kconfig' "${KERNEL_DIR}/drivers/Kconfig" \
 		|| die "drivers/Kconfig was not wired up for kernelsu"
-	# builtin-new targets a newer SUSFS than some kernels carry (e.g. v2.3.0).
+		# builtin-new targets a newer SUSFS than some kernels carry (e.g. v2.3.0).
 	# Drop the two features whose kernel-side pieces don't exist here.
 	if [ "$variant" = "sukisu-ultra" ]; then
 		local sc="${KERNEL_DIR}/drivers/kernelsu/supercall/supercall.c"
@@ -170,6 +170,28 @@ ksu_install() {
 				warn "disabled priority_uid_filter (kernel SUSFS is older)"
 			fi
 		fi
+	fi
+
+	# The SUSFS patch in this kernel is older than what builtin-new expects.
+	# Define the symbols both sides reference, and keep the SELinux-hide spoof off.
+	if [ "$variant" = "sukisu-ultra" ] && [ "$ref" = "builtin-new" ] \
+		&& ! grep -q "susfs_add_sus_type" "${KERNEL_DIR}/fs/susfs.c" 2>/dev/null; then
+		local ksu_c="${KERNEL_DIR}/drivers/kernelsu/ksu.c"
+		local hide_c="${KERNEL_DIR}/drivers/kernelsu/feature/selinux_hide.c"
+		sed -i 's/^static bool ksu_selinux_hide_enabled __read_mostly = true;/bool ksu_selinux_hide_enabled __read_mostly = true;/' "$hide_c"
+		sed -i -E 's/ksu_selinux_hide_running = true;/ksu_selinux_hide_running = false;/; s/ksu_selinux_hide_running = ksu_selinux_hide_enabled && !!fake_status;/ksu_selinux_hide_running = false;/' "$hide_c"
+		cat >>"$ksu_c" <<'EOF'
+
+/* compat stubs: kernel-side SUSFS in this tree predates builtin-new */
+#include <linux/fs.h>
+int susfs_add_sus_type(const char *secctx, u32 type_value) { return 0; }
+int susfs_add_sus_avd_allowed_by_type(u32 s_type, u32 t_type, u32 c_type, u32 orig_avd_allowed) { return 0; }
+int susfs_parse_sus_path_app_strings(void) { return 0; }
+int my_setprocattr(const char *name, void *value, size_t size) { return -EOPNOTSUPP; }
+ssize_t my_write_context(struct file *file, char *buf, size_t size) { return -EOPNOTSUPP; }
+ssize_t my_write_access(struct file *file, char *buf, size_t size) { return -EOPNOTSUPP; }
+EOF
+		warn "added SUSFS/SELinux-hide compat stubs for older kernel-side SUSFS"
 	fi
 	# Confirm we landed on the ref we asked for, catching the silent fallback.
 	local head_desc head_sha
