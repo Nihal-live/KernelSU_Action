@@ -154,7 +154,23 @@ ksu_install() {
 		|| die "drivers/Makefile was not wired to CONFIG_KSU for kernelsu"
 	grep -q 'drivers/kernelsu/Kconfig' "${KERNEL_DIR}/drivers/Kconfig" \
 		|| die "drivers/Kconfig was not wired up for kernelsu"
-
+	# builtin-new targets a newer SUSFS than some kernels carry (e.g. v2.3.0).
+	# Drop the two features whose kernel-side pieces don't exist here.
+	if [ "$variant" = "sukisu-ultra" ]; then
+		local sc="${KERNEL_DIR}/drivers/kernelsu/supercall/supercall.c"
+		local susdef="${KERNEL_DIR}/include/linux/susfs_def.h"
+		local kconf="${KERNEL_DIR}/drivers/kernelsu/Kconfig"
+		if [ -f "$sc" ] && [ -f "$susdef" ]; then
+			if ! grep -q CMD_SUSFS_SET_SUS_PATH_UID_FILTER "$susdef"; then
+				perl -0pi -e 's/(\t\tcase CMD_SUSFS_SET_SUS_PATH_UID_FILTER:\n\t\t\tsusfs_set_sus_path_uid_filter\(arg\);\n\t\t\treturn 0;\n)/#ifdef CMD_SUSFS_SET_SUS_PATH_UID_FILTER\n$1#endif\n/' "$sc"
+				warn "guarded sus_path_uid_filter (kernel SUSFS is older)"
+			fi
+			if ! grep -q CMD_SUSFS_SET_PRIORITY_UID_FILTER "$susdef"; then
+				perl -0pi -e 's/(config KSU_SUSFS_PRIORITY_UID_FILTER\n(?:.*\n)*?\tdefault )y/${1}n/' "$kconf"
+				warn "disabled priority_uid_filter (kernel SUSFS is older)"
+			fi
+		fi
+	fi
 	# Confirm we landed on the ref we asked for, catching the silent fallback.
 	local head_desc head_sha
 	head_sha=$(git -C "$ksu_dir" rev-parse --short HEAD)
