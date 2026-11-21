@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install a KernelSU variant into the kernel tree.
-#
+#none
 # Every variant ships a near-identical kernel/setup.sh that clones itself next
 # to the kernel tree and symlinks drivers/kernelsu at it. They differ in three
 # ways that matter, all of which are encoded in the registry below:
