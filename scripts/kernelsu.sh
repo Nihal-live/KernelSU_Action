@@ -178,8 +178,10 @@ ksu_install() {
 		&& ! grep -q "susfs_add_sus_type" "${KERNEL_DIR}/fs/susfs.c" 2>/dev/null; then
 		local ksu_c="${KERNEL_DIR}/drivers/kernelsu/ksu.c"
 		local hide_c="${KERNEL_DIR}/drivers/kernelsu/feature/selinux_hide.c"
-		sed -i 's/^static bool ksu_selinux_hide_enabled __read_mostly = true;/bool ksu_selinux_hide_enabled __read_mostly = true;/' "$hide_c"
-		sed -i -E 's/ksu_selinux_hide_running = true;/ksu_selinux_hide_running = false;/; s/ksu_selinux_hide_running = ksu_selinux_hide_enabled && !!fake_status;/ksu_selinux_hide_running = false;/' "$hide_c"
+				find "${ksu_dir}/kernel" -name '*.[ch]' -exec sed -i -E \
+			-e 's/^static bool ksu_selinux_hide_enabled\b/bool ksu_selinux_hide_enabled/' \
+			-e 's/ksu_selinux_hide_running = true;/ksu_selinux_hide_running = false;/' \
+			-e 's/ksu_selinux_hide_running = ksu_selinux_hide_enabled && !!fake_status;/ksu_selinux_hide_running = false;/' {} +
 		cat >>"$ksu_c" <<'EOF'
 
 /* compat stubs: kernel-side SUSFS in this tree predates builtin-new */
